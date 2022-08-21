@@ -1,5 +1,6 @@
 pub mod components;
 pub mod hooks;
+pub mod query;
 pub mod query_client;
 
 pub mod prelude {

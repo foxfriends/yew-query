@@ -42,8 +42,9 @@ impl QueryClient {
     /// triggered. Instead, the result of the already-in-progress query will be
     /// returned when it is completed.
     ///
-    /// If this query was previously in the cache, its data will be marked as
-    /// invalid but remain accessible until the new query is complete.
+    /// If this query was previously in the cache and is still valid, it will
+    /// not be re-queried. Mark a query as invalid before attempting to fetch it
+    /// if you wish for it to be reloaded.
     ///
     /// If you wish to remove previously cached data before fetching, see
     /// [`clear_query`][QueryClient::clear_query].
@@ -69,13 +70,12 @@ impl QueryClient {
         if state.is_loading() {
             let data = state.pending_data().unwrap();
             std::mem::drop(client_mut);
-            data
-        } else {
+            data.await;
+        } else if !state.is_valid() {
             state.set_loading(request.clone());
             std::mem::drop(client_mut);
-            request
+            request.await;
         }
-        .await;
 
         let client = client.borrow();
         client.cache().get(query.as_ref()).unwrap()

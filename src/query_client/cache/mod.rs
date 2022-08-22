@@ -14,18 +14,12 @@ pub use cached::Cached;
 use entry::Entry;
 use state::State;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Cache {
     cache: TypeMap,
 }
 
 impl Cache {
-    pub fn new() -> Self {
-        Self {
-            cache: TypeMap::default(),
-        }
-    }
-
     pub fn insert<Q>(&mut self, query: impl Into<Rc<Q>>, data: impl Into<Rc<Q::Output>>)
     where
         Q: Query + 'static,

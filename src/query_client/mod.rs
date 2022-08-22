@@ -4,19 +4,22 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 mod cache;
-mod client;
 mod request;
 
 use cache::Cache;
-use client::Client;
 use request::Request;
 
 pub use cache::Cached;
 
 /// Provides a backing for the query hooks. Must be provided to
 /// the app via [`QueryClientProvider`][crate::components::query_client_provider::QueryClientProvider].
-#[derive(Clone, Debug, Default)]
-pub struct QueryClient(Rc<RefCell<Client>>);
+#[derive(Clone, Default)]
+pub struct QueryClient(Rc<RefCell<ClientInternals>>);
+
+#[derive(Default)]
+pub(crate) struct ClientInternals {
+    cache: Cache,
+}
 
 impl QueryClient {
     /// Create a new (default) `QueryClient`.
@@ -31,7 +34,7 @@ impl QueryClient {
     /// served by [`fetch_query`][QueryClient::fetch_query]
     pub fn set_query_data<Q: Query + 'static>(&self, query: Q, data: Q::Output) {
         let mut client = self.0.borrow_mut();
-        client.cache_mut().insert(query, data);
+        client.cache.insert(query, data);
     }
 
     /// Fetches a query and stores its data in the cache.
@@ -56,17 +59,13 @@ impl QueryClient {
             let client = client.clone();
             move |data| {
                 let data = Rc::new(data);
-                client
-                    .borrow_mut()
-                    .cache_mut()
-                    .insert::<Q>(query, data.clone());
+                client.borrow_mut().cache.insert::<Q>(query, data.clone());
                 data
             }
         }));
 
         let mut client_mut = client.borrow_mut();
-        let cache = client_mut.cache_mut();
-        let state = cache.entry::<Q>(query.clone()).or_default();
+        let state = client_mut.cache.entry::<Q>(query.clone()).or_default();
         if state.is_loading() {
             let data = state.pending_data().unwrap();
             std::mem::drop(client_mut);
@@ -78,7 +77,7 @@ impl QueryClient {
         }
 
         let client = client.borrow();
-        client.cache().get(query.as_ref()).unwrap()
+        client.cache.get(query.as_ref()).unwrap()
     }
 
     /// Retrieves cached query data.
@@ -91,8 +90,7 @@ impl QueryClient {
     /// automatically when the query is completed. For that, see [`fetch_query`][QueryClient::fetch_query]
     pub fn get_query_data<Q: Query + 'static>(&self, query: &Q) -> Option<Cached<Q>> {
         let client = self.0.borrow();
-        let cache = client.cache();
-        cache.get(query)
+        client.cache.get(query)
     }
 
     /// Invalidate cached query data, without refetching.
@@ -104,8 +102,7 @@ impl QueryClient {
     /// If you want to completely remove the data and query, see [`clear_query`][QueryClient::clear_query].
     pub fn invalidate_query<Q: Query + 'static>(&self, query: &Q) {
         let mut client = self.0.borrow_mut();
-        let cache = client.cache_mut();
-        cache.invalidate(query)
+        client.cache.invalidate(query)
     }
 
     /// Completely remove a query and its associated data from the cache.
@@ -114,16 +111,14 @@ impl QueryClient {
     /// return `None` (as if this query had never been made).
     pub fn remove_query<Q: Query + 'static>(&self, query: &Q) {
         let mut client = self.0.borrow_mut();
-        let cache = client.cache_mut();
-        cache.remove(query)
+        client.cache.remove(query)
     }
 
     /// Removed cached query data without triggering a refresh, but leaving the
     /// empty entry in the cache.
     pub fn clear_query<Q: Query + 'static>(&self, query: &Q) {
         let mut client = self.0.borrow_mut();
-        let cache = client.cache_mut();
-        if let Some(state) = cache.get_mut(query) {
+        if let Some(state) = client.cache.get_mut(query) {
             state.clear();
         }
     }

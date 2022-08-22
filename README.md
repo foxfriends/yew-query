@@ -1,8 +1,8 @@
 # Yew Query
 
-Inspired by [React Query][], can we build the same for [Yew][]?
+Inspired by [TanStack Query][], can we build the same for [Yew][]?
 
-[React Query]: https://tanstack.com/query/v4
+[TanStack Query]: https://tanstack.com/query/v4
 [Yew]: https://yew.rs/
 
 > **Note**

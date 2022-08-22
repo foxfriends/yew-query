@@ -38,8 +38,15 @@ impl QueryClient {
     ///
     /// The returned future will complete when the fetching is done.
     ///
-    /// If this query was previously in the cache, it will be completely removed before
-    /// querying. If you wish to preserve previously cached data see [`refetch_query`][].
+    /// If the same query was previously being fetched, a second query will not be
+    /// triggered. Instead, the result of the already-in-progress query will be
+    /// returned when it is completed.
+    ///
+    /// If this query was previously in the cache, its data will be marked as
+    /// invalid but remain accessible until the new query is complete.
+    ///
+    /// If you wish to remove previously cached data before fetching, see
+    /// [`clear_query`][QueryClient::clear_query].
     pub async fn fetch_query<Q: Query + 'static>(&self, query: Q) -> Cached<Q> {
         let query = Rc::new(query);
         let client = self.0.clone();
@@ -75,6 +82,13 @@ impl QueryClient {
     }
 
     /// Retrieves cached query data.
+    ///
+    /// If the query has never been fetched, this will return `None`. This is a different
+    /// result than requesting a query that is mid-fetch or invalid, as such queries
+    /// will return a result that indicates the state of the query at the time of requesting.
+    ///
+    /// The returned data is a snapshot of the state of the query, and will not update
+    /// automatically when the query is completed. For that, see [`fetch_query`][QueryClient::fetch_query]
     pub fn get_query_data<Q: Query + 'static>(&self, query: &Q) -> Option<Cached<Q>> {
         let client = self.0.borrow();
         let cache = client.cache();
@@ -83,33 +97,35 @@ impl QueryClient {
 
     /// Invalidate cached query data, without refetching.
     ///
-    /// The invalid data will continue to be accessible.
+    /// The invalid data will continue to be accessible, and may be refetched
+    /// manually at a later time.
     ///
-    /// If you also want to refetch the data, see [`refetch_query`][].
+    /// If you also want to refetch the data, use [`fetch_query`][QueryClient::fetch_query].
+    /// If you want to completely remove the data and query, see [`clear_query`][QueryClient::clear_query].
     pub fn invalidate_query<Q: Query + 'static>(&self, query: &Q) {
         let mut client = self.0.borrow_mut();
         let cache = client.cache_mut();
         cache.invalidate(query)
     }
 
-    /// Invalidate and refetch cached query data.
+    /// Completely remove a query and its associated data from the cache.
     ///
-    /// The invalid data will continue to be accessible until the refetch is
-    /// completed.
-    ///
-    /// If you want to invalidate the query without refetching, see `invalidate_query`.
-    pub fn refetch_query<Q: Query + 'static>(&self, query: &Q) {
-        let mut client = self.0.borrow_mut();
-        let cache = client.cache_mut();
-        cache.invalidate(query);
-        // let _query = cache.entry(query);
-    }
-
-    /// Completely remove cached query data without triggering a refresh.
-    pub fn clear_query<Q: Query + 'static>(&self, query: &Q) {
+    /// After this, calling [`get_query_data`][QueryClient::get_query_data] will
+    /// return `None` (as if this query had never been made).
+    pub fn remove_query<Q: Query + 'static>(&self, query: &Q) {
         let mut client = self.0.borrow_mut();
         let cache = client.cache_mut();
         cache.remove(query)
+    }
+
+    /// Removed cached query data without triggering a refresh, but leaving the
+    /// empty entry in the cache.
+    pub fn clear_query<Q: Query + 'static>(&self, query: &Q) {
+        let mut client = self.0.borrow_mut();
+        let cache = client.cache_mut();
+        if let Some(state) = cache.get_mut(query) {
+            state.clear();
+        }
     }
 }
 

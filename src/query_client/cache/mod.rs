@@ -82,4 +82,14 @@ impl Cache {
             .or_insert_with(Default::default);
         Entry::from(bucket.values.entry(query))
     }
+
+    pub fn get_mut<Q, K>(&mut self, query: &K) -> Option<&mut State<Q::Output>>
+    where
+        Q: Query + 'static,
+        Rc<Q>: Borrow<K>,
+        K: Hash + Eq,
+    {
+        let bucket = self.cache.get_mut::<Bucket<Q>>()?;
+        bucket.values.get_mut(query)
+    }
 }

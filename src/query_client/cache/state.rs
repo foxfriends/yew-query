@@ -46,6 +46,10 @@ impl<T> State<T> {
         }
     }
 
+    pub fn clear(&mut self) {
+        *self = Self::Idle;
+    }
+
     pub fn is_loading(&self) -> bool {
         matches!(self, Self::Loading(..))
     }
